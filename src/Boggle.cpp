@@ -23,6 +23,7 @@ using namespace std;
 const int BOGGLE_WINDOW_WIDTH = 650;
 const int BOGGLE_WINDOW_HEIGHT = 350;
 const int STANDARD_BOARD_SIZE = 4;
+const int MIN_WORD = 4;
 
 const string STANDARD_CUBES[16]  = {
     "AAEEGN", "ABBJOO", "ACHOPS", "AFFKPS",
@@ -38,6 +39,7 @@ void giveInstructions();
 bool isPermitted(string prompt);
 bool isValidReply(string userInput);
 void playBoggle();
+void humanTurn(Set<string> & used, Lexicon & english);
 void configureBoard(bool isManualConfig);
 void manualConfig();
 void autoConfig();
@@ -74,6 +76,37 @@ void playBoggle() {
     cout << "I'll give you a chance to set up the board to your specification, which makes"
          << " it easier to confirm your boggle program is working." << endl;
     configureBoard(isPermitted("Do you want to force the board configuration? "));
+    humanTurn(usedWords, english);
+}
+
+/*
+ * Function: humanTurn
+ * Usage: void humanTurn(used, english);
+ * -------------------------------------
+ * Allows the user to enter all the words they can find on the Boggle board, one line at a
+ * time, and to try again if an invalid guess is entered. For each word the user guesses
+ * correctly, the cubes for that word are highlighted on the Boggle board and the player
+ * scoreboard is updated accordingly.
+ */
+
+void humanTurn(Set<string> & used, Lexicon & english) {
+    cout << "Ok, take all the time you want and find all the words you can! Signal that"
+         << " you're finished by entering an empty line." << endl;
+    while (true) {
+        string candidate = getLine("Enter a word: ");
+        if (candidate == "") break;
+        if (used.contains(candidate)) {
+            cout << "You've already guessed that!" << endl;
+        } else if (candidate.length() < MIN_WORD) {
+            cout << "I'm sorry, but we have our standards.\nThat word doesn't meet the"
+                 << " minimum word length." << endl;
+        } else if (english.contains(candidate)) {
+                used.add(candidate);
+                recordWordForPlayer(candidate, HUMAN);
+        } else {
+            cout << "That's not a word!" << endl;
+        }
+    }
 }
 
 /*
