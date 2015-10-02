@@ -6,6 +6,7 @@
  
 #include <iostream>
 #include <cctype>
+#include <string>
 #include "gboggle.h"
 #include "grid.h"
 #include "gwindow.h"
@@ -36,6 +37,14 @@ void welcome();
 void giveInstructions();
 bool isPermitted(string prompt);
 bool isValidReply(string userInput);
+void playBoggle();
+void configureBoard(bool isManualConfig);
+void manualConfig();
+void autoConfig();
+void fillGrid(Vector<string> & letters);
+Vector<string> copyCubes();
+string validateConfigInput(string boardConfig, int minChars);
+bool isAlphaString(string input);
 
 /* Main program */
 
@@ -45,10 +54,157 @@ int main() {
     welcome();
     if (isPermitted("Do you need instructions? ")) giveInstructions();
     while (true) {
-
+        playBoggle();
         if (!isPermitted("Would you like to play again? ")) break;
     }
     return 0;
+}
+
+/*
+ * Function: playBoggle
+ * Usage: void playBoggle();
+ * -------------------------
+ * Plays the game.
+ */
+
+void playBoggle() {
+    Set<string> usedWords;
+    Lexicon english("EnglishWords.dat");
+    drawBoard(STANDARD_BOARD_SIZE, STANDARD_BOARD_SIZE);
+    cout << "I'll give you a chance to set up the board to your specification, which makes"
+         << " it easier to confirm your boggle program is working." << endl;
+    configureBoard(isPermitted("Do you want to force the board configuration? "));
+}
+
+/*
+ * Function: configureBoard
+ * Usage: void configureBoard(isManualConfig);
+ * -------------------------------------------
+ * Configures the cubes on the Boggle board. This implementation requires a boolean
+ * parameter that is initialized via a prompt which takes input from the user.
+ */
+
+void configureBoard(bool isManualConfig) {
+    if (isManualConfig) {
+        manualConfig();
+    } else {
+        autoConfig();
+    }
+}
+
+/*
+ * Function: manualConfig
+ * Usage: void manualConfig();
+ * ---------------------------
+ * Takes a string of letters from the user and assigns each character to a cube on
+ * the Boggle board from left to right, top to bottom.
+ */
+
+void manualConfig() {
+    Vector<string> vec;
+    int minChars = sizeof STANDARD_CUBES / sizeof STANDARD_CUBES[0];
+    cout << "Enter a " << minChars << "-character string to identify which letters you"
+         << " want on the cubes. The first " << STANDARD_BOARD_SIZE << " letters are the"
+         << " cubes on the top row from left to right, the next 4 letters are the second row"
+         << " and so on." << endl;
+    string letters = validateConfigInput(getLine("Enter the string: "), minChars);
+    for (int i = 0; i < letters.length(); i++) {
+        vec.add(string() + letters[i]);
+    }
+    fillGrid(vec);
+}
+
+/*
+ * Function: autoConfig
+ * Usage: void autoConfig();
+ * -------------------------
+ * Automatically configures the Boggle cubes.
+ */
+
+void autoConfig() {
+    Vector<string> vec = copyCubes();
+    for (int i = 0; i < vec.size(); i++) {
+        int x = randomInteger(i, vec.size() - 1);
+        string tmp = vec[x];
+        vec[x] = vec[i];
+        vec[i] = tmp;
+    }
+    fillGrid(vec);
+}
+
+/*
+ * Function: fillGrid
+ * Usage: void fillGrid(letters);
+ * -----------------------------
+ * Fills the upward-facing side of the cubes on the Boggle board with the specified
+ * letters.
+ */
+
+void fillGrid(Vector<string> & letters) {
+    int pos = 0;
+    for (int i = 0; i < STANDARD_BOARD_SIZE; i++) {
+        for (int j = 0; j < STANDARD_BOARD_SIZE; j++) {
+            labelCube(i, j, letters[pos][randomInteger(0, letters[pos].length() - 1)]);
+            pos++;
+        }
+    }
+}
+
+/*
+ * Function: copyCubes
+ * Usage: Vector<string> vec = copyCubes();
+ * ----------------------------------------
+ * Returns a vector containing copies of elements from an array.
+ */
+
+Vector<string> copyCubes() {
+    Vector<string> result;
+    int arraySize = sizeof STANDARD_CUBES / sizeof STANDARD_CUBES[0];
+    for (int i = 0; i < arraySize; i++) {
+        result.add(STANDARD_CUBES[i]);
+    }
+    return result;
+}
+
+/*
+ * Function: validateConfigInput
+ * Usage: string letters = validateConfigInput(boardConfig, minChars);
+ * ---------------------------------------------------------
+ * Checks whether the specified board configuration is in the correct format and if so,
+ * returns the configuration as a string. This implementation requires the given board
+ * configuration to be initialized via a prompt which takes input from the user. If the user
+ * enters input in the wrong format, they are given another chance to enter the board
+ * configuration.
+ */
+
+string validateConfigInput(string boardConfig, int minChars) {
+    while (true) {
+        if (boardConfig.length() < minChars) {
+            boardConfig = getLine("String must include " + integerToString(minChars)
+                                  + " characters! Try again: ");
+        } else if(!isAlphaString(boardConfig)) {
+            boardConfig = getLine("String must only include letters of the english alphabet!"
+                                  " Try again: ");
+        } else {
+            break;
+        }
+    }
+    return boardConfig;
+}
+
+/*
+ * Function: isAlphaString
+ * Usage: bool isValidInput = isAlphaString(input);
+ * ------------------------------------------------
+ * Returns true if the specified string input contains only letters of the engligsh
+ * alphabet, or false otherwise.
+ */
+
+bool isAlphaString(string input) {
+    for (int i = 0; i < input.length(); i++) {
+        if (!isalpha(input[i])) return false;
+    }
+    return true;
 }
 
 /*
