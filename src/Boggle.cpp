@@ -149,14 +149,16 @@ bool isWordPath(Grid<char> & grid, string candidate, int row, int col,
         for (int i = row; i < STANDARD_BOARD_SIZE; i++) {
             for (int j = col; j < STANDARD_BOARD_SIZE; j++) {
                 if (grid[i][j] == candidate[0]) {
-                    usedCells += "(" + integerToString(i) + ", " + integerToString(j) + ")";
-                    return isAdjacentCube(grid, candidate.substr(1), i, j, usedCells, true);
+                    string cell = "(" + integerToString(i) + "," + integerToString(j) + ")";
+                    if (isAdjacentCube(grid, candidate.substr(1), i, j, cell, true)) {
+                        return true;
+                    }
                 }
             }
         }
     }
     if (row >= 0 && row < STANDARD_BOARD_SIZE && col >= 0 && col < STANDARD_BOARD_SIZE) {
-        string cell = "(" + integerToString(row) + ", " + integerToString(col) + ")";
+        string cell = "(" + integerToString(row) + "," + integerToString(col) + ")";
         if (grid[row][col] == candidate[0] && usedCells.find(cell) == string::npos) {
             return isAdjacentCube(grid, candidate.substr(1), row, col, usedCells + cell, true);
         }
