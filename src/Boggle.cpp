@@ -53,6 +53,7 @@ bool isWordPath(Grid<char> & grid, string candidate, int row, int col, string us
                 bool pastFirstLetter);
 bool isAdjacentCube(Grid<char> & grid, string candidate, int row, int col, string usedCells,
                     bool flag);
+void highlightUsedCubes(string cells, bool flag);
 
 /* Main program */
 
@@ -143,6 +144,7 @@ bool isBoggleWord(Grid<char> & grid, string candidate) {
 bool isWordPath(Grid<char> & grid, string candidate, int row, int col,
               string usedCells, bool pastFirstLetter) {
     if (candidate.length() == 0) {
+        highlightUsedCubes(usedCells, true);
         return true;
     }
     if (!pastFirstLetter) {
@@ -184,6 +186,31 @@ bool isAdjacentCube(Grid<char> & grid, string candidate, int row, int col,
             || isWordPath(grid, candidate, row + 1, col, usedCells, true)
             || isWordPath(grid, candidate, row + 1, col - 1, usedCells, true)
             || isWordPath(grid, candidate, row + 1, col + 1, usedCells, true);
+}
+
+/*
+ * Function: highlightUsedCubes
+ * Usage: void highlightUsedCubes(cells, flag);
+ * --------------------------------------------
+ * Highlights the cubes used to form a valid word on the Boggle board, and then
+ * unhighlights them after a brief pause.
+ */
+
+void highlightUsedCubes(string cells, bool flag) {
+    int cellStart = cellStart = cells.find("(");
+    while (cellStart != string::npos) {
+        int separatorPos = cells.find(",", cellStart);
+        int rowEndPos = separatorPos - 1;
+        int row = stringToInteger(cells.substr(cellStart + 1, rowEndPos - cellStart));
+        int colEndPos = cells.find(")", separatorPos) - 1;
+        int col = stringToInteger(cells.substr(separatorPos + 1, colEndPos - separatorPos));
+        highlightCube(row, col, flag);
+        cellStart = cells.find("(", cellStart + 1);
+    }
+    if (flag == true) {
+        pause(500);
+        highlightUsedCubes(cells, false);
+    }
 }
 
 /*
