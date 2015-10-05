@@ -23,7 +23,8 @@ using namespace std;
 
 const int BOGGLE_WINDOW_WIDTH = 650;
 const int BOGGLE_WINDOW_HEIGHT = 350;
-const int STANDARD_BOARD_SIZE = 4;
+const int STANDARD_BOGGLE_SIZE = 4;
+const int BIG_BOGGLE_SIZE = 5;
 const int MIN_WORD = 4;
 
 const string STANDARD_CUBES[16]  = {
@@ -33,6 +34,14 @@ const string STANDARD_CUBES[16]  = {
     "EIOSST", "ELRTTY", "HIMNQU", "HLNNRZ"
 };
 
+const string BIG_BOGGLE_CUBES[25]  = {
+    "AAAFRS", "AAEEEE", "AAFIRS", "ADENNN", "AEEEEM",
+    "AEEGMU", "AEGMNN", "AFIRSY", "BJKQXZ", "CCNSTW",
+    "CEIILT", "CEILPT", "CEIPST", "DDLNOR", "DDHNOT",
+    "DHHLOR", "DHLNOR", "EIIITT", "EMOTTT", "ENSSSU",
+    "FIPRSY", "GORRVW", "HIPRRY", "NOOTUW", "OOOTTU"
+};
+
 /* Function prototypes */
 
 void welcome();
@@ -40,14 +49,15 @@ void giveInstructions();
 bool isPermitted(string prompt);
 bool isValidReply(string userInput);
 void playBoggle();
+Grid<char> getBoardSize(bool isBigBoggle);
 void configureBoard(Grid<char> & grid, bool isManualConfig);
 void humanTurn(Grid<char> & grid, Set<string> & used, Lexicon & english);
 void computerTurn(Grid<char> & grid, Set<string> & usedWords, Lexicon & english);
-Vector<string> manualConfig();
-Vector<string> autoConfig();
+Vector<string> manualConfig(Grid<char> & grid);
+Vector<string> autoConfig(Grid<char> & grid);
 void fillGrid(Grid<char> & grid, Vector<string> & letters);
-Vector<string> copyCubes();
-string validateConfigInput(string boardConfig, int minChars);
+Vector<string> copyCubes(Grid<char> & grid);
+string validateConfigInput(string boardConfig, int nChars);
 bool isAlphaString(string input);
 bool isBoggleWord(Grid<char> & grid, string candidate);
 bool isWordPath(Grid<char> & grid, string candidate, int row, int col, string usedCells,
@@ -84,7 +94,8 @@ int main() {
  */
 
 void playBoggle() {
-    Grid<char> grid(STANDARD_BOARD_SIZE, STANDARD_BOARD_SIZE);
+    cout << "You can choose standard Boggle (4x4 grid) or Big Boggle (5x5)." << endl;
+    Grid<char> grid = getBoardSize(isPermitted("Would you like Big Boggle? "));
     Set<string> usedWords;
     Lexicon english("EnglishWords.dat");
     cout << "I'll give you a chance to set up the board to your specification, which makes"
@@ -122,13 +133,13 @@ void findRemainingWords(Grid<char> & grid, Set<string> & usedWords, Lexicon & en
         recordWordForPlayer(candidate, COMPUTER);
     }
     if (!pastFirstLetter) {
-        for (int i = 0; i < STANDARD_BOARD_SIZE; i++) {
-            for (int j = 0; j < STANDARD_BOARD_SIZE; j++) {
+        for (int i = 0; i < grid.numRows(); i++) {
+            for (int j = 0; j < grid.numCols(); j++) {
                 findRemainingWords(grid, usedWords, english, candidate, i, j, usedCells, true);
             }
         }
     }
-    if (row >= 0 && row < STANDARD_BOARD_SIZE && col >= 0 && col < STANDARD_BOARD_SIZE) {
+    if (grid.inBounds(row, col)) {
         string next = candidate + grid[row][col];
         string cell = "(" + integerToString(row) + "," + integerToString(col) + ")";
         if (english.containsPrefix(next) && usedCells.find(cell) == string::npos) {
@@ -141,8 +152,8 @@ void findRemainingWords(Grid<char> & grid, Set<string> & usedWords, Lexicon & en
  * Function adjacentLettersPath
  * Usage: void adjacentLettersPath(grid, usedWords, english, candidate, row, col, usedCells);
  * ------------------------------------------------------------------------------------------
- * Extends the word path by appending each letter adjacent to the character at the specified row
- * and column to candidate one at a time.
+ * Extends the word path by appending each letter adjacent to the character at the specified
+ * row and column to candidate one at a time.
  */
 
 void appendAdjacentLetters(Grid<char> & grid, Set<string> & usedWords, Lexicon & english,
@@ -219,8 +230,8 @@ bool isWordPath(Grid<char> & grid, string candidate, int row, int col,
         return true;
     }
     if (!pastFirstLetter) {
-        for (int i = row; i < STANDARD_BOARD_SIZE; i++) {
-            for (int j = col; j < STANDARD_BOARD_SIZE; j++) {
+        for (int i = row; i < grid.numRows(); i++) {
+            for (int j = col; j < grid.numCols(); j++) {
                 if (grid[i][j] == candidate[0]) {
                     string cell = "(" + integerToString(i) + "," + integerToString(j) + ")";
                     if (isAdjacentCube(grid, candidate.substr(1), i, j, cell, true)) {
@@ -230,7 +241,7 @@ bool isWordPath(Grid<char> & grid, string candidate, int row, int col,
             }
         }
     }
-    if (row >= 0 && row < STANDARD_BOARD_SIZE && col >= 0 && col < STANDARD_BOARD_SIZE) {
+    if (grid.inBounds(row, col)) {
         string cell = "(" + integerToString(row) + "," + integerToString(col) + ")";
         if (grid[row][col] == candidate[0] && usedCells.find(cell) == string::npos) {
             return isAdjacentCube(grid, candidate.substr(1), row, col, usedCells + cell, true);
@@ -285,40 +296,57 @@ void highlightUsedCubes(string cells, bool flag) {
 }
 
 /*
+ * Function: getBoardSize
+ * Usage: Grid<char> grid = getBoardSize(isBigBoggle);
+ * ---------------------------------------------------
+ * Returns a grid with the dimensions of a big Boggle board (5x5) if the boolean flag is true,
+ * or a standard board (4x4) if false.
+ */
+
+Grid<char> getBoardSize(bool isBigBoggle) {
+    Grid<char> result;
+    if (isBigBoggle) result.resize(BIG_BOGGLE_SIZE, BIG_BOGGLE_SIZE);
+    else result.resize(STANDARD_BOGGLE_SIZE, STANDARD_BOGGLE_SIZE);
+    return result;
+}
+
+/*
  * Function: configureBoard
  * Usage: void configureBoard(isManualConfig);
  * -------------------------------------------
- * Configures the cubes on the board. This implementation requires a boolean
- * parameter that is initialized via a prompt which takes input from the user.
+ * Configures the cubes on the board. This implementation uses a boolean flag which
+ * is initialized via a prompt that if true, allows the user to manually configure the
+ * cubes on the board. Otherwise, the cubes on the board are automatically arranged.
  */
 
 void configureBoard(Grid<char> & grid, bool isManualConfig) {
     Vector<string> config;
     if (isManualConfig) {
-        config = manualConfig();
+        config = manualConfig(grid);
     } else {
-        config = autoConfig();
+        config = autoConfig(grid);
     }
-    drawBoard(STANDARD_BOARD_SIZE, STANDARD_BOARD_SIZE);
+    drawBoard(grid.numRows(), grid.numCols());
     fillGrid(grid, config);
 }
 
 /*
  * Function: manualConfig
- * Usage: void manualConfig();
- * ---------------------------
+ * Usage: void manualConfig(grid);
+ * -------------------------------
  * Takes a string of letters from the user and assigns each character to a cube on
- * the board from left to right, top to bottom.
+ * the board from left to right, top to bottom. The number of cubes required is
+ * determined using the dimensions of the specified grid.
  */
 
-Vector<string> manualConfig() {
+Vector<string> manualConfig(Grid<char> & grid) {
     Vector<string> vec;
-    int minChars = sizeof STANDARD_CUBES / sizeof STANDARD_CUBES[0];
-    cout << "Enter a " << minChars << "-character string to identify which letters you"
-         << " want on the cubes. The first " << STANDARD_BOARD_SIZE << " letters are the"
-         << " cubes on the top row from left to right, the next 4 letters are the second row"
-         << " and so on." << endl;
-    string letters = validateConfigInput(getLine("Enter the string: "), minChars);
+    int nChars = grid.numRows() * grid.numCols();
+    cout << "Enter a " << nChars << "-character string to identify which letters"
+         << " you want on the cubes. The first " << grid.numRows()
+         << " letters are the cubes on the top row from left to right, the next "
+         << grid.numRows() << " letters are the second row and so on." << endl;
+    string letters = validateConfigInput(getLine("Enter the string: "), nChars);
     for (int i = 0; i < letters.length(); i++) {
         vec.add(string() + letters[i]);
     }
@@ -327,13 +355,14 @@ Vector<string> manualConfig() {
 
 /*
  * Function: autoConfig
- * Usage: void autoConfig();
- * -------------------------
- * Automatically configures the cubes on the board.
+ * Usage: void autoConfig(grid);
+ * -----------------------------
+ * Automatically configures the cubes on the board based on the dimensions of the
+ * specified grid.
  */
 
-Vector<string> autoConfig() {
-    Vector<string> vec = copyCubes();
+Vector<string> autoConfig(Grid<char> & grid) {
+    Vector<string> vec = copyCubes(grid);
     for (int i = 0; i < vec.size(); i++) {
         int x = randomInteger(i, vec.size() - 1);
         string tmp = vec[x];
@@ -346,15 +375,15 @@ Vector<string> autoConfig() {
 /*
  * Function: fillGrid
  * Usage: void fillGrid(grid, letters);
- * -----------------------------
+ * ------------------------------------
  * Fills the upward-facing side of the cubes on the board with the specified letters
  * and stores the arrangement of the cubes in the grid reference parameter.
  */
 
 void fillGrid(Grid<char> & grid, Vector<string> & letters) {
     int pos = 0;
-    for (int i = 0; i < STANDARD_BOARD_SIZE; i++) {
-        for (int j = 0; j < STANDARD_BOARD_SIZE; j++) {
+    for (int i = 0; i < grid.numRows(); i++) {
+        for (int j = 0; j < grid.numCols(); j++) {
             char ch = letters[pos][randomInteger(0, letters[pos].length() - 1)];
             grid[i][j] = toupper(ch);
             labelCube(i, j, toupper(ch));
@@ -365,24 +394,32 @@ void fillGrid(Grid<char> & grid, Vector<string> & letters) {
 
 /*
  * Function: copyCubes
- * Usage: Vector<string> vec = copyCubes();
- * ----------------------------------------
- * Returns a vector containing copies of elements from an array.
+ * Usage: Vector<string> vec = copyCubes(grid);
+ * --------------------------------------------
+ * Returns a vector containing copies of either standard or big Boggle cubes based on
+ * the size of grid.
  */
 
-Vector<string> copyCubes() {
+Vector<string> copyCubes(Grid<char> & grid) {
     Vector<string> result;
-    int arraySize = sizeof STANDARD_CUBES / sizeof STANDARD_CUBES[0];
-    for (int i = 0; i < arraySize; i++) {
-        result.add(STANDARD_CUBES[i]);
+    int nBigCubes = sizeof BIG_BOGGLE_CUBES / sizeof BIG_BOGGLE_CUBES[0];
+    int nStandardCubes = sizeof STANDARD_CUBES / sizeof STANDARD_CUBES;
+    if (grid.numRows() * grid.numCols() == nStandardCubes) {
+        for (int i = 0; i < nStandardCubes; i++) {
+            result.add(STANDARD_CUBES[i]);
+        }
+    } else {
+        for (int i = 0; i < nBigCubes; i++) {
+            result.add(BIG_BOGGLE_CUBES[i]);
+        }
     }
     return result;
 }
 
 /*
  * Function: validateConfigInput
- * Usage: string letters = validateConfigInput(boardConfig, minChars);
- * ---------------------------------------------------------
+ * Usage: string letters = validateConfigInput(boardConfig, nChars);
+ * -----------------------------------------------------------------
  * Checks whether the specified board configuration is in the correct format and if so,
  * returns the configuration as a string. This implementation requires the given board
  * configuration to be initialized via a prompt which takes input from the user. If the user
@@ -390,10 +427,10 @@ Vector<string> copyCubes() {
  * configuration.
  */
 
-string validateConfigInput(string boardConfig, int minChars) {
+string validateConfigInput(string boardConfig, int nChars) {
     while (true) {
-        if (boardConfig.length() < minChars) {
-            boardConfig = getLine("String must include " + integerToString(minChars)
+        if (boardConfig.length() < nChars) {
+            boardConfig = getLine("String must include " + integerToString(nChars)
                                   + " characters! Try again: ");
         } else if(!isAlphaString(boardConfig)) {
             boardConfig = getLine("String must only include letters of the english alphabet!"
@@ -423,7 +460,7 @@ bool isAlphaString(string input) {
 /*
  * Function: isPermitted
  * Usage: bool userConsent = isPermitted(userInput);
- * ---------------------------------
+ * -------------------------------------------------
  * Prompts the user with a specified question. Returns true if the user's response
  * is any accepted variation of "yes" or false otherwise.
  */
@@ -446,7 +483,7 @@ bool isPermitted(string prompt) {
 /*
  * Function: isValidReply
  * Usage: bool reply = isValidReply(userInput);
- * --------------------------------------------------
+ * --------------------------------------------
  * Returns true if the specified user input meets the necessary criteria to be valid,
  * or false otherwise. This implementation requires the user input parameter to be
  * in the uppercase format.
