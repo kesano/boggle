@@ -40,8 +40,9 @@ void giveInstructions();
 bool isPermitted(string prompt);
 bool isValidReply(string userInput);
 void playBoggle();
-void humanTurn(Grid<char> & grid, Set<string> & used, Lexicon & english);
 void configureBoard(Grid<char> & grid, bool isManualConfig);
+void humanTurn(Grid<char> & grid, Set<string> & used, Lexicon & english);
+void computerTurn(Grid<char> & grid, Set<string> & usedWords, Lexicon & english);
 Vector<string> manualConfig();
 Vector<string> autoConfig();
 void fillGrid(Grid<char> & grid, Vector<string> & letters);
@@ -54,6 +55,12 @@ bool isWordPath(Grid<char> & grid, string candidate, int row, int col, string us
 bool isAdjacentCube(Grid<char> & grid, string candidate, int row, int col, string usedCells,
                     bool flag);
 void highlightUsedCubes(string cells, bool flag);
+void findRemainingWords(Grid<char> & grid, Set<string> & usedWords, Lexicon & english,
+                        string candidate, int row, int col, string usedCells,
+                        bool pastFirstLetter);
+void appendAdjacentLetters(Grid<char> & grid, Set<string> & usedWords, Lexicon & english,
+                         string candidate, int row, int col, string usedCells,
+                         bool pastFirstLetter);
 
 /* Main program */
 
@@ -80,20 +87,84 @@ void playBoggle() {
     Grid<char> grid(STANDARD_BOARD_SIZE, STANDARD_BOARD_SIZE);
     Set<string> usedWords;
     Lexicon english("EnglishWords.dat");
-    drawBoard(STANDARD_BOARD_SIZE, STANDARD_BOARD_SIZE);
     cout << "I'll give you a chance to set up the board to your specification, which makes"
          << " it easier to confirm your boggle program is working." << endl;
     configureBoard(grid, isPermitted("Do you want to force the board configuration? "));
     humanTurn(grid, usedWords, english);
+    computerTurn(grid, usedWords, english);
+}
+
+/*
+ * Function: computerTurn
+ * Usage: void computerTurn(grid, usedWords, english);
+ * ---------------------------------------------------
+ * Wrapper function that passes additional arguments to a function that finds all the
+ * remaining words on the board.
+ */
+
+void computerTurn(Grid<char> & grid, Set<string> & usedWords, Lexicon & english) {
+    findRemainingWords(grid, usedWords, english, "", 0, 0, "", false);
+}
+
+/*
+ * Function: findRemainingWords
+ * Usage: void findRemainingWords(grid, usedWords, english, candidate, row, col, usedCells);
+ * -----------------------------------------------------------------------------------------
+ * Finds all the remaining words on the board.
+ */
+
+void findRemainingWords(Grid<char> & grid, Set<string> & usedWords, Lexicon & english,
+                        string candidate, int row, int col, string usedCells,
+                        bool pastFirstLetter) {
+    if (english.contains(candidate) && !usedWords.contains(candidate)
+            && candidate.length() >= MIN_WORD) {
+        usedWords.add(candidate);
+        recordWordForPlayer(candidate, COMPUTER);
+    }
+    if (!pastFirstLetter) {
+        for (int i = 0; i < STANDARD_BOARD_SIZE; i++) {
+            for (int j = 0; j < STANDARD_BOARD_SIZE; j++) {
+                findRemainingWords(grid, usedWords, english, candidate, i, j, usedCells, true);
+            }
+        }
+    }
+    if (row >= 0 && row < STANDARD_BOARD_SIZE && col >= 0 && col < STANDARD_BOARD_SIZE) {
+        string next = candidate + grid[row][col];
+        string cell = "(" + integerToString(row) + "," + integerToString(col) + ")";
+        if (english.containsPrefix(next) && usedCells.find(cell) == string::npos) {
+            appendAdjacentLetters(grid, usedWords, english, next, row, col, usedCells + cell, true);
+        }
+    }
+}
+
+/*
+ * Function adjacentLettersPath
+ * Usage: void adjacentLettersPath(grid, usedWords, english, candidate, row, col, usedCells);
+ * ------------------------------------------------------------------------------------------
+ * Extends the word path by appending each letter adjacent to the character at the specified row
+ * and column to candidate one at a time.
+ */
+
+void appendAdjacentLetters(Grid<char> & grid, Set<string> & usedWords, Lexicon & english,
+                         string candidate, int row, int col, string usedCells,
+                         bool pastFirstLetter) {
+    findRemainingWords(grid, usedWords, english, candidate, row, col - 1, usedCells, true);
+    findRemainingWords(grid, usedWords, english, candidate, row, col + 1, usedCells, true);
+    findRemainingWords(grid, usedWords, english, candidate, row - 1, col, usedCells, true);
+    findRemainingWords(grid, usedWords, english, candidate, row - 1, col - 1, usedCells, true);
+    findRemainingWords(grid, usedWords, english, candidate, row - 1, col + 1, usedCells, true);
+    findRemainingWords(grid, usedWords, english, candidate, row + 1, col, usedCells, true);
+    findRemainingWords(grid, usedWords, english, candidate, row + 1, col - 1, usedCells, true);
+    findRemainingWords(grid, usedWords, english, candidate, row + 1, col + 1, usedCells, true);
 }
 
 /*
  * Function: humanTurn
  * Usage: void humanTurn(used, english);
  * -------------------------------------
- * Allows the user to enter all the words they can find on the Boggle board, one line at a
- * time, and to try again if an invalid guess is entered. For each word the user guesses
- * correctly, the cubes for that word are highlighted on the Boggle board and the player
+ * Allows the user to enter all the words they can find on the board, one line at a time
+ * and to try again if an invalid guess is entered. For each word the user guesses
+ * correctly, the cubes for that word are highlighted on the board and the player
  * scoreboard is updated accordingly.
  */
 
@@ -126,7 +197,7 @@ void humanTurn(Grid<char> & grid, Set<string> & used, Lexicon & english) {
  * Usage: bool isWord = isBoggleWord(grid, candidate);
  * ---------------------------------------------------
  * Wrapper function that passes additional arguments to a function that returns true if
- * the given candidate word can be formed on the Boggle board, or false otherwise.
+ * the given candidate word can be formed on the board, or false otherwise.
  */
 
 bool isBoggleWord(Grid<char> & grid, string candidate) {
@@ -138,7 +209,7 @@ bool isBoggleWord(Grid<char> & grid, string candidate) {
  * Usage: bool isPath = isWordPath(grid, candidate, row, col, foundFirstLetter);
  * -----------------------------------------------------------------------------
  * Returns true if a distinct path between adjacent letters forming the specified candidate
- * word exists on the Boggle board, or false otherwise.
+ * word exists on the board, or false otherwise.
  */
 
 bool isWordPath(Grid<char> & grid, string candidate, int row, int col,
@@ -192,7 +263,7 @@ bool isAdjacentCube(Grid<char> & grid, string candidate, int row, int col,
  * Function: highlightUsedCubes
  * Usage: void highlightUsedCubes(cells, flag);
  * --------------------------------------------
- * Highlights the cubes used to form a valid word on the Boggle board, and then
+ * Highlights the cubes used to form a valid word on the board, and then
  * unhighlights them after a brief pause.
  */
 
@@ -217,7 +288,7 @@ void highlightUsedCubes(string cells, bool flag) {
  * Function: configureBoard
  * Usage: void configureBoard(isManualConfig);
  * -------------------------------------------
- * Configures the cubes on the Boggle board. This implementation requires a boolean
+ * Configures the cubes on the board. This implementation requires a boolean
  * parameter that is initialized via a prompt which takes input from the user.
  */
 
@@ -228,6 +299,7 @@ void configureBoard(Grid<char> & grid, bool isManualConfig) {
     } else {
         config = autoConfig();
     }
+    drawBoard(STANDARD_BOARD_SIZE, STANDARD_BOARD_SIZE);
     fillGrid(grid, config);
 }
 
@@ -236,7 +308,7 @@ void configureBoard(Grid<char> & grid, bool isManualConfig) {
  * Usage: void manualConfig();
  * ---------------------------
  * Takes a string of letters from the user and assigns each character to a cube on
- * the Boggle board from left to right, top to bottom.
+ * the board from left to right, top to bottom.
  */
 
 Vector<string> manualConfig() {
@@ -257,7 +329,7 @@ Vector<string> manualConfig() {
  * Function: autoConfig
  * Usage: void autoConfig();
  * -------------------------
- * Automatically configures the Boggle cubes.
+ * Automatically configures the cubes on the board.
  */
 
 Vector<string> autoConfig() {
@@ -275,8 +347,8 @@ Vector<string> autoConfig() {
  * Function: fillGrid
  * Usage: void fillGrid(grid, letters);
  * -----------------------------
- * Fills the upward-facing side of the cubes on the Boggle board with the specified
- * letters and stores the arrangement of the cubes in the grid reference parameter.
+ * Fills the upward-facing side of the cubes on the board with the specified letters
+ * and stores the arrangement of the cubes in the grid reference parameter.
  */
 
 void fillGrid(Grid<char> & grid, Vector<string> & letters) {
