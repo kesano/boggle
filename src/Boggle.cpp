@@ -16,6 +16,7 @@
 #include "strlib.h"
 #include "set.h"
 #include "vector.h"
+#include "map.h"
 using namespace std;
 
 /* Constants */
@@ -39,14 +40,19 @@ void giveInstructions();
 bool isPermitted(string prompt);
 bool isValidReply(string userInput);
 void playBoggle();
-void humanTurn(Set<string> & used, Lexicon & english);
-void configureBoard(bool isManualConfig);
-void manualConfig();
-void autoConfig();
-void fillGrid(Vector<string> & letters);
+void humanTurn(Grid<char> & grid, Set<string> & used, Lexicon & english);
+void configureBoard(Grid<char> & grid, bool isManualConfig);
+Vector<string> manualConfig();
+Vector<string> autoConfig();
+void fillGrid(Grid<char> & grid, Vector<string> & letters);
 Vector<string> copyCubes();
 string validateConfigInput(string boardConfig, int minChars);
 bool isAlphaString(string input);
+bool isBoggleWord(Grid<char> & grid, string candidate);
+bool isWordPath(Grid<char> & grid, string candidate, int row, int col, string usedCells,
+                bool pastFirstLetter);
+bool isAdjacentCube(Grid<char> & grid, string candidate, int row, int col, string usedCells,
+                    bool flag);
 
 /* Main program */
 
@@ -70,13 +76,14 @@ int main() {
  */
 
 void playBoggle() {
+    Grid<char> grid(STANDARD_BOARD_SIZE, STANDARD_BOARD_SIZE);
     Set<string> usedWords;
     Lexicon english("EnglishWords.dat");
     drawBoard(STANDARD_BOARD_SIZE, STANDARD_BOARD_SIZE);
     cout << "I'll give you a chance to set up the board to your specification, which makes"
          << " it easier to confirm your boggle program is working." << endl;
-    configureBoard(isPermitted("Do you want to force the board configuration? "));
-    humanTurn(usedWords, english);
+    configureBoard(grid, isPermitted("Do you want to force the board configuration? "));
+    humanTurn(grid, usedWords, english);
 }
 
 /*
@@ -89,11 +96,11 @@ void playBoggle() {
  * scoreboard is updated accordingly.
  */
 
-void humanTurn(Set<string> & used, Lexicon & english) {
+void humanTurn(Grid<char> & grid, Set<string> & used, Lexicon & english) {
     cout << "Ok, take all the time you want and find all the words you can! Signal that"
          << " you're finished by entering an empty line." << endl;
     while (true) {
-        string candidate = getLine("Enter a word: ");
+        string candidate = toUpperCase(getLine("Enter a word: "));
         if (candidate == "") break;
         if (used.contains(candidate)) {
             cout << "You've already guessed that!" << endl;
@@ -101,12 +108,80 @@ void humanTurn(Set<string> & used, Lexicon & english) {
             cout << "I'm sorry, but we have our standards.\nThat word doesn't meet the"
                  << " minimum word length." << endl;
         } else if (english.contains(candidate)) {
+            if (isBoggleWord(grid, candidate)) {
                 used.add(candidate);
                 recordWordForPlayer(candidate, HUMAN);
+            } else {
+                cout << "You can't make that word!" << endl;
+            }
         } else {
             cout << "That's not a word!" << endl;
         }
     }
+}
+
+/*
+ * Function: isBoggleWord
+ * Usage: bool isWord = isBoggleWord(grid, candidate);
+ * ---------------------------------------------------
+ * Wrapper function that passes additional arguments to a function that returns true if
+ * the given candidate word can be formed on the Boggle board, or false otherwise.
+ */
+
+bool isBoggleWord(Grid<char> & grid, string candidate) {
+    return isWordPath(grid, candidate, 0, 0, "", false);
+}
+
+/*
+ * Function: isWordPath
+ * Usage: bool isPath = isWordPath(grid, candidate, row, col, foundFirstLetter);
+ * -----------------------------------------------------------------------------
+ * Returns true if a distinct path between adjacent letters forming the specified candidate
+ * word exists on the Boggle board, or false otherwise.
+ */
+
+bool isWordPath(Grid<char> & grid, string candidate, int row, int col,
+              string usedCells, bool pastFirstLetter) {
+    if (candidate.length() == 0) {
+        return true;
+    }
+    if (!pastFirstLetter) {
+        for (int i = row; i < STANDARD_BOARD_SIZE; i++) {
+            for (int j = col; j < STANDARD_BOARD_SIZE; j++) {
+                if (grid[i][j] == candidate[0]) {
+                    usedCells += "(" + integerToString(i) + ", " + integerToString(j) + ")";
+                    return isAdjacentCube(grid, candidate.substr(1), i, j, usedCells, true);
+                }
+            }
+        }
+    }
+    if (row >= 0 && row < STANDARD_BOARD_SIZE && col >= 0 && col < STANDARD_BOARD_SIZE) {
+        string cell = "(" + integerToString(row) + ", " + integerToString(col) + ")";
+        if (grid[row][col] == candidate[0] && usedCells.find(cell) == string::npos) {
+            return isAdjacentCube(grid, candidate.substr(1), row, col, usedCells + cell, true);
+        }
+    }
+    return false;
+}
+
+/*
+ * Function: isAdjacentCube
+ * Usage: bool isNextLetter = isAdjacentCube(grid, candidate, row, col, usedCells, flag);
+ * --------------------------------------------------------------------------------------
+ * Returns true if the letter on any of the cubes adjacent to the cube at the specified row and
+ * column is the same as the first letter of the given candidate string.
+ */
+
+bool isAdjacentCube(Grid<char> & grid, string candidate, int row, int col,
+                    string usedCells, bool flag) {
+    return  isWordPath(grid, candidate, row, col - 1, usedCells, true)
+            || isWordPath(grid, candidate, row, col + 1, usedCells, true)
+            || isWordPath(grid, candidate, row - 1, col, usedCells, true)
+            || isWordPath(grid, candidate, row - 1, col - 1, usedCells, true)
+            || isWordPath(grid, candidate, row - 1, col + 1, usedCells, true)
+            || isWordPath(grid, candidate, row + 1, col, usedCells, true)
+            || isWordPath(grid, candidate, row + 1, col - 1, usedCells, true)
+            || isWordPath(grid, candidate, row + 1, col + 1, usedCells, true);
 }
 
 /*
@@ -117,12 +192,14 @@ void humanTurn(Set<string> & used, Lexicon & english) {
  * parameter that is initialized via a prompt which takes input from the user.
  */
 
-void configureBoard(bool isManualConfig) {
+void configureBoard(Grid<char> & grid, bool isManualConfig) {
+    Vector<string> config;
     if (isManualConfig) {
-        manualConfig();
+        config = manualConfig();
     } else {
-        autoConfig();
+        config = autoConfig();
     }
+    fillGrid(grid, config);
 }
 
 /*
@@ -133,7 +210,7 @@ void configureBoard(bool isManualConfig) {
  * the Boggle board from left to right, top to bottom.
  */
 
-void manualConfig() {
+Vector<string> manualConfig() {
     Vector<string> vec;
     int minChars = sizeof STANDARD_CUBES / sizeof STANDARD_CUBES[0];
     cout << "Enter a " << minChars << "-character string to identify which letters you"
@@ -144,7 +221,7 @@ void manualConfig() {
     for (int i = 0; i < letters.length(); i++) {
         vec.add(string() + letters[i]);
     }
-    fillGrid(vec);
+    return vec;
 }
 
 /*
@@ -154,7 +231,7 @@ void manualConfig() {
  * Automatically configures the Boggle cubes.
  */
 
-void autoConfig() {
+Vector<string> autoConfig() {
     Vector<string> vec = copyCubes();
     for (int i = 0; i < vec.size(); i++) {
         int x = randomInteger(i, vec.size() - 1);
@@ -162,22 +239,24 @@ void autoConfig() {
         vec[x] = vec[i];
         vec[i] = tmp;
     }
-    fillGrid(vec);
+    return vec;
 }
 
 /*
  * Function: fillGrid
- * Usage: void fillGrid(letters);
+ * Usage: void fillGrid(grid, letters);
  * -----------------------------
  * Fills the upward-facing side of the cubes on the Boggle board with the specified
- * letters.
+ * letters and stores the arrangement of the cubes in the grid reference parameter.
  */
 
-void fillGrid(Vector<string> & letters) {
+void fillGrid(Grid<char> & grid, Vector<string> & letters) {
     int pos = 0;
     for (int i = 0; i < STANDARD_BOARD_SIZE; i++) {
         for (int j = 0; j < STANDARD_BOARD_SIZE; j++) {
-            labelCube(i, j, letters[pos][randomInteger(0, letters[pos].length() - 1)]);
+            char ch = letters[pos][randomInteger(0, letters[pos].length() - 1)];
+            grid[i][j] = toupper(ch);
+            labelCube(i, j, toupper(ch));
             pos++;
         }
     }
